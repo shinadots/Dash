@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "PerformanceMetric": {
+      "title": "Performance Metric",
+      "description": "Ad performance data for Meta Ads or Google Ads",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID" },
+        "platform": { "type": "string", "enum": ["meta", "google"], "description": "Ad platform" },
+        "campaignName": { "type": "string", "description": "Name of the campaign" },
+        "spend": { "type": "number", "description": "Amount spent" },
+        "impressions": { "type": "number", "description": "Number of impressions" },
+        "clicks": { "type": "number", "description": "Number of clicks" },
+        "conversions": { "type": "number", "description": "Number of conversions" },
+        "ctr": { "type": "number", "description": "Click-through rate" },
+        "cpc": { "type": "number", "description": "Cost per click" },
+        "roas": { "type": "number", "description": "Return on ad spend" },
+        "date": { "type": "string", "format": "date", "description": "Date of the metric" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["platform", "campaignName", "spend", "date"]
+    },
+    "GoogleAccount": {
+      "title": "Google Account",
+      "description": "Google accounts managed in the dashboard",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID" },
+        "email": { "type": "string", "format": "email", "description": "Account email" },
+        "name": { "type": "string", "description": "Account display name" },
+        "status": { "type": "string", "enum": ["active", "inactive", "error"], "description": "Account status" },
+        "lastSync": { "type": "string", "format": "date-time", "description": "Last synchronization timestamp" },
+        "type": { "type": "string", "enum": ["Ads", "Analytics", "Search Console"], "description": "Type of Google service" }
+      },
+      "required": ["email", "name", "status"]
+    }
+  },
+  "firestore": {
+    "/metrics": {
+      "schema": "PerformanceMetric",
+      "description": "Collection of performance metrics"
+    },
+    "/google_accounts": {
+      "schema": "GoogleAccount",
+      "description": "Collection of managed Google accounts"
+    }
+  }
+}

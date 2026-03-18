@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: metrics
+    // Document ID: auto-generated
+    // Fields:
+    //   - campaignName: string (required, 1-100 chars)
+    //   - spend: number (required, >= 0)
+    //   - impressions: number (optional, >= 0)
+    //   - clicks: number (optional, >= 0)
+    //   - conversions: number (optional, >= 0)
+    //   - ctr: number (optional, >= 0)
+    //   - cpc: number (optional, >= 0)
+    //   - roas: number (optional, >= 0)
+    //   - date: string (required, ISO 8601)
+    //   - updatedAt: string (required, ISO 8601)
+    //   - uid: string (required, matches owner)
+    //
+    // Collection: google_accounts
+    // Document ID: auto-generated
+    // Fields:
+    //   - email: string (required, email format)
+    //   - name: string (required, 1-100 chars)
+    //   - status: string (required, enum: active, inactive, error)
+    //   - lastSync: string (required, ISO 8601)
+    //   - type: string (required, enum: Ads, Analytics, Search Console)
+    //   - uid: string (required, matches owner)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "yoshinagavictor@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidMetric(data) {
+      return hasOnlyAllowedFields(['platform', 'campaignName', 'spend', 'impressions', 'clicks', 'conversions', 'ctr', 'cpc', 'roas', 'date', 'updatedAt', 'uid']) &&
+             data.platform in ['meta', 'google'] &&
+             data.campaignName is string && data.campaignName.size() > 0 && data.campaignName.size() <= 100 &&
+             data.spend is number && data.spend >= 0 &&
+             data.uid == request.auth.uid;
+    }
+
+    function isValidGoogleAccount(data) {
+      return hasOnlyAllowedFields(['email', 'name', 'status', 'lastSync', 'type', 'uid']) &&
+             isValidEmail(data.email) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.status in ['active', 'inactive', 'error'] &&
+             data.type in ['Ads', 'Analytics', 'Search Console'] &&
+             data.uid == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isAdmin();
+    }
+
+    match /metrics/{metricId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidMetric(request.resource.data);
+      allow update: if isDocOwner() && isValidMetric(request.resource.data);
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /google_accounts/{accountId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidGoogleAccount(request.resource.data);
+      allow update: if isDocOwner() && isValidGoogleAccount(request.resource.data);
+      allow delete: if isDocOwner() || isAdmin();
+    }
+  }
+}
