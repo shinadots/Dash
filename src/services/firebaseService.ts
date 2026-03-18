@@ -1,71 +1,65 @@
 import { 
   collection, 
   query, 
-  where, 
   onSnapshot, 
   addDoc, 
-  updateDoc, 
   deleteDoc, 
   doc, 
-  getDoc,
-  getDocs,
-  setDoc,
-  serverTimestamp,
-  DocumentReference,
-  CollectionReference,
-  Query,
-  DocumentData
+  orderBy,
+  where
 } from 'firebase/firestore';
-import { db, auth } from '../firebase';
-import { PerformanceMetric, GoogleAccount, OperationType, FirestoreErrorInfo } from '../types';
+import { db } from '../firebase';
+import { PerformanceMetric, GoogleAccount, OperationType } from '../types';
 
+// Função de erro simplificada (removida dependência de auth.currentUser)
 function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
+  const errInfo = {
     error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
     operationType,
-    path
+    path,
+    timestamp: new Date().toISOString()
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.error('Firestore Error: ', errInfo);
 }
 
-export const subscribeToMetrics = (uid: string, callback: (metrics: PerformanceMetric[]) => void) => {
+// 1. Busca as Métricas (Removido filtro de UID para ser público)
+export const subscribeToMetrics = (_uid: string, callback: (metrics: PerformanceMetric[]) => void) => {
   const path = 'metrics';
-  const q = query(collection(db, path), where('uid', '==', uid));
+  
+  // Agora buscamos todas as métricas da coleção, ordenadas por data
+  const q = query(
+    collection(db, path), 
+    orderBy('date', 'desc')
+  );
   
   return onSnapshot(q, (snapshot) => {
-    const metrics = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PerformanceMetric));
+    const metrics = snapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as PerformanceMetric));
     callback(metrics);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, path);
   });
 };
 
-export const subscribeToGoogleAccounts = (uid: string, callback: (accounts: GoogleAccount[]) => void) => {
+// 2. Busca as Contas Google (Removido filtro de UID)
+export const subscribeToGoogleAccounts = (_uid: string, callback: (accounts: GoogleAccount[]) => void) => {
   const path = 'google_accounts';
-  const q = query(collection(db, path), where('uid', '==', uid));
+  const q = query(collection(db, path));
   
   return onSnapshot(q, (snapshot) => {
-    const accounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoogleAccount));
+    const accounts = snapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as GoogleAccount));
     callback(accounts);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, path);
   });
 };
 
+// 3. Adicionar Métrica (Útil para testes manuais)
 export const addMetric = async (metric: Omit<PerformanceMetric, 'id' | 'updatedAt'>) => {
   const path = 'metrics';
   try {
@@ -78,6 +72,7 @@ export const addMetric = async (metric: Omit<PerformanceMetric, 'id' | 'updatedA
   }
 };
 
+// 4. Adicionar Conta Google
 export const addGoogleAccount = async (account: Omit<GoogleAccount, 'id' | 'lastSync'>) => {
   const path = 'google_accounts';
   try {
@@ -90,6 +85,7 @@ export const addGoogleAccount = async (account: Omit<GoogleAccount, 'id' | 'last
   }
 };
 
+// 5. Deletar Conta Google
 export const deleteGoogleAccount = async (id: string) => {
   const path = `google_accounts/${id}`;
   try {
